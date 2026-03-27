@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.staging
+
+# Firebase / Google Services (NEVER commit)
+google-services.json
+GoogleService-Info.plist
+
+# Android build
+android/app/build/
+android/.gradle/
+android/build/
+android/local.properties
+*.apk
+*.aab
+
+# iOS build
+ios/Pods/
+ios/build/
+ios/*.xcworkspace
+ios/*.pbxuser
+ios/*.perspectivev3
+ios/**/xcuserdata/
+
+# Metro bundler
+.metro-health-check*
+
+# React Native
+*.hprof
+*.bundle
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Buck
+buck-out/
+\.buckd/
+
+# Coverage
+coverage/

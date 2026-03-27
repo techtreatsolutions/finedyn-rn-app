@@ -1,0 +1,28 @@
+import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from './client';
+
+export const orderApi = {
+  getOrders: (params) => apiGet('/orders', params),
+  getOrder: (id) => apiGet(`/orders/${id}`),
+  createOrder: (data) => apiPost('/orders', data),
+  updateOrder: (id, data) => apiPut(`/orders/${id}`, data),
+  addItem: (orderId, data) => apiPost(`/orders/${orderId}/items`, data),
+  updateItem: (orderId, itemId, data) => apiPut(`/orders/${orderId}/items/${itemId}`, data),
+  removeItem: (orderId, itemId) => apiDelete(`/orders/${orderId}/items/${itemId}`),
+  sendKOT: (orderId) => apiPost(`/orders/${orderId}/kot`),
+  generateBill: (orderId) => apiGet(`/orders/${orderId}/bill`),
+  addPayment: (orderId, data) => apiPost(`/orders/${orderId}/payments`, data),
+  getPayments: (orderId) => apiGet(`/orders/${orderId}/payments`),
+  payOrder: (orderId, data) => apiPost(`/orders/${orderId}/pay`, data),
+  closeOrder: (orderId) => apiPost(`/orders/${orderId}/close`),
+  reopenOrder: (orderId) => apiPost(`/orders/${orderId}/reopen`),
+  cancelOrder: (orderId) => apiPost(`/orders/${orderId}/cancel`),
+  addAdjustment: (orderId, data) => apiPost(`/orders/${orderId}/adjustments`, data),
+  removeAdjustment: (orderId, adjId) => apiDelete(`/orders/${orderId}/adjustments/${adjId}`),
+  sendEBill: (orderId) => apiPost(`/orders/${orderId}/send-ebill`),
+  getCustomers: (params) => apiGet('/orders/customers', params),
+  getCustomerHistory: (phone) => apiGet(`/orders/customers/${phone}/history`),
+  lookupCustomer: (phone) => apiGet(`/orders/customer/${phone}`),
+  getKitchenOrders: () => apiGet('/orders/kitchen'),
+  updateKitchenItemStatus: (itemId, data) => apiPatch(`/orders/kitchen/items/${itemId}/status`, data),
+  updateCustomer: (orderId, data) => apiPatch(`/orders/${orderId}/customer`, data),
+};
