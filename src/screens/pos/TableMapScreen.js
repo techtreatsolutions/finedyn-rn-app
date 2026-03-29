@@ -16,6 +16,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import EmptyState from '../../components/common/EmptyState';
 import { colors, spacing, radius, typography } from '../../theme';
 import { capitalize, formatCurrency, timeAgo } from '../../utils/formatters';
+import { useAuth } from '../../hooks/useAuth';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const TABLE_CARD_MARGIN = spacing.sm;
@@ -33,6 +34,8 @@ const STATUS_ICONS = {
 
 export default function TableMapScreen({ navigation }) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const posScreen = (user?.role === 'owner' || user?.role === 'manager') ? 'POS / Billing' : 'POS';
   const [selectedFloor, setSelectedFloor] = useState(null);
   const [selectedTable, setSelectedTable] = useState(null);
   const [showPanel, setShowPanel] = useState(false);
@@ -92,7 +95,7 @@ export default function TableMapScreen({ navigation }) {
       closePanel();
       // Navigate to POS with this order
       if (order.id) {
-        navigation.navigate('POS', { orderId: order.id });
+        navigation.navigate(posScreen, { orderId: order.id });
       }
     },
     onError: (err) => Alert.alert('Error', err?.response?.data?.message || 'Failed to seat guest'),
@@ -119,12 +122,12 @@ export default function TableMapScreen({ navigation }) {
       return;
     }
     closePanel();
-    navigation.navigate('POS', { orderId, tableId: table.id });
+    navigation.navigate(posScreen, { orderId, tableId: table.id });
   }, [navigation]);
 
   const handleStartOrder = useCallback((table) => {
     closePanel();
-    navigation.navigate('POS', { tableId: table.id, tableNumber: table.table_number, startNew: true });
+    navigation.navigate(posScreen, { tableId: table.id, tableNumber: table.table_number, startNew: true });
   }, [navigation]);
 
   const handleSeatReservation = useCallback((table) => {

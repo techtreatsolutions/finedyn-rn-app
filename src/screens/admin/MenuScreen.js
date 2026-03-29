@@ -421,8 +421,8 @@ export default function MenuScreen({ navigation }) {
   const renderMenuItemList = useCallback(({ item }) => (
     <Card style={styles.itemCard}>
       <TouchableOpacity style={styles.itemContent} onPress={() => openEditItem(item)}>
-        {item.image ? (
-          <Image source={{ uri: item.image }} style={styles.itemImage} />
+        {item.image_url ? (
+          <Image source={{ uri: item.image_url }} style={styles.itemImage} />
         ) : (
           <View style={[styles.itemImage, styles.itemImagePlaceholder]}>
             <Icon name="image" size={24} color={colors.textMuted} />
@@ -478,8 +478,8 @@ export default function MenuScreen({ navigation }) {
   const renderMenuItemGrid = useCallback(({ item }) => (
     <Card style={styles.gridCard}>
       <TouchableOpacity onPress={() => openEditItem(item)}>
-        {item.image ? (
-          <Image source={{ uri: item.image }} style={styles.gridImage} />
+        {item.image_url ? (
+          <Image source={{ uri: item.image_url }} style={styles.gridImage} />
         ) : (
           <View style={[styles.gridImage, styles.gridImagePlaceholder]}>
             <Icon name="image" size={32} color={colors.textMuted} />
@@ -740,8 +740,8 @@ export default function MenuScreen({ navigation }) {
         <TouchableOpacity onPress={pickImage} style={styles.imageUpload}>
           {itemImage ? (
             <Image source={{ uri: itemImage.uri }} style={styles.uploadPreview} />
-          ) : editingItem?.image ? (
-            <Image source={{ uri: editingItem.image }} style={styles.uploadPreview} />
+          ) : editingItem?.image_url ? (
+            <Image source={{ uri: editingItem.image_url }} style={styles.uploadPreview} />
           ) : (
             <View style={styles.uploadPlaceholder}>
               <Icon name="camera" size={24} color={colors.textMuted} />

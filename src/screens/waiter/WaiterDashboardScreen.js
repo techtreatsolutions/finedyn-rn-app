@@ -133,6 +133,35 @@ export default function WaiterDashboardScreen({ navigation }) {
 
   const cartCount = useMemo(() => cart.reduce((s, c) => s + c.qty, 0), [cart]);
 
+  // 16a/16c: Tax estimates for new cart items
+  const cartTax = useMemo(() => {
+    let cgst = 0, sgst = 0;
+    for (const c of cart) {
+      const lineTotal = c.price * c.qty;
+      const taxAmt = lineTotal * (c.tax_rate / 100);
+      cgst += taxAmt / 2;
+      sgst += taxAmt / 2;
+    }
+    return { cgst, sgst, total: cgst + sgst };
+  }, [cart]);
+
+  // 16a: Tax from saved order (tax_amount split equally into CGST + SGST)
+  const savedTax = useMemo(() => {
+    if (!orderDetail) return { cgst: 0, sgst: 0, subtotal: 0 };
+    const subtotal = parseFloat(orderDetail.subtotal || 0);
+    const totalTax = parseFloat(orderDetail.tax_amount || 0);
+    return { cgst: totalTax / 2, sgst: totalTax / 2, subtotal };
+  }, [orderDetail]);
+
+  // 16b: Qty map for menu item badges
+  const cartQtyMap = useMemo(() => {
+    const map = {};
+    for (const c of cart) {
+      map[c.menuItemId] = (map[c.menuItemId] || 0) + c.qty;
+    }
+    return map;
+  }, [cart]);
+
   // ── Cart helpers ───────────────────────────────────────────────────────
   function cartKey(menuItemId, variantId, addons) {
     const addonSig = (addons || []).map(a => a.id).sort().join(',');
@@ -250,6 +279,16 @@ export default function WaiterDashboardScreen({ navigation }) {
       setSelectedTable(prev => prev ? { ...prev, status: 'available' } : prev);
     },
     onError: (e) => Alert.alert('Error', e?.response?.data?.message || 'Failed to update status'),
+  });
+
+  // 16d: Customer info mutation
+  const updateCustomerMut = useMutation({
+    mutationFn: ({ orderId, data }) => orderApi.updateCustomer(orderId, data),
+    onSuccess: () => {
+      Alert.alert('Success', 'Customer info updated');
+      refetchOrder();
+    },
+    onError: (e) => Alert.alert('Error', e?.response?.data?.message || 'Failed to update customer'),
   });
 
   // ── Send KOT flow ─────────────────────────────────────────────────────
@@ -499,24 +538,32 @@ export default function WaiterDashboardScreen({ navigation }) {
           numColumns={2}
           columnWrapperStyle={styles.menuRow}
           contentContainerStyle={styles.menuGrid}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.menuCard}
-              onPress={() => handleItemClick(item)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.menuCardTop}>
-                <Text style={styles.menuItemName} numberOfLines={2}>{item.name}</Text>
-                <View style={[styles.typeDot, { backgroundColor: item.item_type === 'veg' ? '#16A34A' : item.item_type === 'egg' ? '#D97706' : '#DC2626' }]} />
-              </View>
-              <View style={styles.menuCardBottom}>
-                <Text style={styles.menuItemPrice}>{formatCurrency(item.price)}</Text>
-                {item.variants?.length > 0 && (
-                  <Text style={styles.variantCount}>{item.variants.length} var</Text>
+          renderItem={({ item }) => {
+            const qtyInCart = cartQtyMap[item.id] || 0;
+            return (
+              <TouchableOpacity
+                style={[styles.menuCard, qtyInCart > 0 && styles.menuCardInCart]}
+                onPress={() => handleItemClick(item)}
+                activeOpacity={0.7}
+              >
+                {qtyInCart > 0 && (
+                  <View style={styles.menuQtyBadge}>
+                    <Text style={styles.menuQtyBadgeText}>{qtyInCart}</Text>
+                  </View>
                 )}
-              </View>
-            </TouchableOpacity>
-          )}
+                <View style={styles.menuCardTop}>
+                  <Text style={styles.menuItemName} numberOfLines={2}>{item.name}</Text>
+                  <View style={[styles.typeDot, { backgroundColor: item.item_type === 'veg' ? '#16A34A' : item.item_type === 'egg' ? '#D97706' : '#DC2626' }]} />
+                </View>
+                <View style={styles.menuCardBottom}>
+                  <Text style={styles.menuItemPrice}>{formatCurrency(item.price)}</Text>
+                  {item.variants?.length > 0 && (
+                    <Text style={styles.variantCount}>{item.variants.length} var</Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          }}
           ListEmptyComponent={
             <EmptyState
               icon={<Icon name="coffee" size={48} color={colors.textMuted} />}
@@ -659,20 +706,100 @@ export default function WaiterDashboardScreen({ navigation }) {
           )}
         </ScrollView>
 
+        {/* 16d: Customer info edit */}
+        {selectedTable?.order_id && orderDetail && (
+          <View style={styles.customerEditSection}>
+            <Text style={styles.cartSectionTitle}>CUSTOMER INFO</Text>
+            <View style={styles.customerRow}>
+              <View style={styles.customerField}>
+                <Text style={styles.customerFieldLabel}>Name</Text>
+                <TextInput
+                  style={styles.customerInput}
+                  value={orderDetail.customer_name || ''}
+                  onChangeText={(val) => {
+                    queryClient.setQueryData(['waiter-order-detail', selectedTable.order_id], prev => {
+                      const d = prev?.data ? { ...prev, data: { ...prev.data, customer_name: val } } : { ...prev, customer_name: val };
+                      return d;
+                    });
+                  }}
+                  placeholder="Customer name"
+                  placeholderTextColor={colors.textMuted}
+                  returnKeyType="done"
+                  onEndEditing={(e) => {
+                    updateCustomerMut.mutate({ orderId: selectedTable.order_id, data: { customerName: e.nativeEvent.text } });
+                  }}
+                />
+              </View>
+              <View style={styles.customerField}>
+                <Text style={styles.customerFieldLabel}>Phone</Text>
+                <TextInput
+                  style={styles.customerInput}
+                  value={orderDetail.customer_phone || ''}
+                  onChangeText={(val) => {
+                    queryClient.setQueryData(['waiter-order-detail', selectedTable.order_id], prev => {
+                      const d = prev?.data ? { ...prev, data: { ...prev.data, customer_phone: val } } : { ...prev, customer_phone: val };
+                      return d;
+                    });
+                  }}
+                  placeholder="Phone number"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="phone-pad"
+                  returnKeyType="done"
+                  onEndEditing={(e) => {
+                    updateCustomerMut.mutate({ orderId: selectedTable.order_id, data: { customerPhone: e.nativeEvent.text } });
+                  }}
+                />
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Summary footer */}
         <View style={styles.cartFooter}>
           {orderDetail && (
-            <View style={styles.cartFooterRow}>
-              <Text style={styles.cartFooterLabel}>Saved Total</Text>
-              <Text style={styles.cartFooterValue}>{formatCurrency(orderDetail.total_amount)}</Text>
-            </View>
+            <>
+              <View style={styles.cartFooterRow}>
+                <Text style={styles.cartFooterLabel}>Subtotal</Text>
+                <Text style={styles.cartFooterValue}>{formatCurrency(savedTax.subtotal)}</Text>
+              </View>
+              <View style={styles.cartFooterRow}>
+                <Text style={styles.cartFooterLabel}>CGST</Text>
+                <Text style={styles.cartFooterValue}>{formatCurrency(savedTax.cgst)}</Text>
+              </View>
+              <View style={styles.cartFooterRow}>
+                <Text style={styles.cartFooterLabel}>SGST</Text>
+                <Text style={styles.cartFooterValue}>{formatCurrency(savedTax.sgst)}</Text>
+              </View>
+              <View style={[styles.cartFooterRow, styles.cartFooterRowBold]}>
+                <Text style={styles.cartFooterLabelBold}>Saved Total</Text>
+                <Text style={styles.cartFooterValueBold}>{formatCurrency(orderDetail.total_amount)}</Text>
+              </View>
+            </>
           )}
           {cart.length > 0 && (
             <>
-              <View style={styles.cartFooterRow}>
-                <Text style={styles.cartFooterLabel}>New Items</Text>
-                <Text style={[styles.cartFooterValue, { color: '#EA580C' }]}>+ {formatCurrency(cartSubtotal)}</Text>
+              <View style={[styles.cartFooterRow, { marginTop: orderDetail ? spacing.sm : 0 }]}>
+                <Text style={styles.cartFooterLabel}>New Subtotal</Text>
+                <Text style={[styles.cartFooterValue, { color: '#EA580C' }]}>{formatCurrency(cartSubtotal)}</Text>
               </View>
+              <View style={styles.cartFooterRow}>
+                <Text style={styles.cartFooterLabel}>CGST (new)</Text>
+                <Text style={[styles.cartFooterValue, { color: '#EA580C' }]}>{formatCurrency(cartTax.cgst)}</Text>
+              </View>
+              <View style={styles.cartFooterRow}>
+                <Text style={styles.cartFooterLabel}>SGST (new)</Text>
+                <Text style={[styles.cartFooterValue, { color: '#EA580C' }]}>{formatCurrency(cartTax.sgst)}</Text>
+              </View>
+              <View style={[styles.cartFooterRow, styles.cartFooterRowBold]}>
+                <Text style={styles.cartFooterLabelBold}>+ New Items</Text>
+                <Text style={[styles.cartFooterValueBold, { color: '#EA580C' }]}>+ {formatCurrency(cartSubtotal + cartTax.total)}</Text>
+              </View>
+              {orderDetail && (
+                <View style={[styles.cartFooterRow, styles.cartFooterRowTotal]}>
+                  <Text style={styles.cartFooterLabelTotal}>Total Amount</Text>
+                  <Text style={styles.cartFooterValueTotal}>{formatCurrency(parseFloat(orderDetail.total_amount || 0) + cartSubtotal + cartTax.total)}</Text>
+                </View>
+              )}
               <Button
                 title="Send to Kitchen (KOT)"
                 onPress={handleSendKOT}
@@ -919,7 +1046,10 @@ const styles = StyleSheet.create({
   // Menu grid
   menuGrid: { padding: spacing.base, paddingBottom: 80 },
   menuRow: { gap: CARD_GAP, marginBottom: CARD_GAP },
-  menuCard: { width: CARD_WIDTH, backgroundColor: colors.white, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.borderLight, padding: spacing.md },
+  menuCard: { width: CARD_WIDTH, backgroundColor: colors.white, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.borderLight, padding: spacing.md, position: 'relative' },
+  menuCardInCart: { borderColor: colors.primary, borderWidth: 1.5 },
+  menuQtyBadge: { position: 'absolute', top: -8, right: -8, backgroundColor: colors.primary, borderRadius: 99, width: 22, height: 22, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
+  menuQtyBadgeText: { color: colors.white, fontSize: 11, fontWeight: '700' },
   menuCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 4 },
   menuItemName: { flex: 1, fontSize: 13, fontWeight: '500', color: colors.text, lineHeight: 18 },
   typeDot: { width: 10, height: 10, borderRadius: 2, marginTop: 3 },
@@ -954,11 +1084,24 @@ const styles = StyleSheet.create({
   qtyBtn: { width: 24, height: 24, borderRadius: radius.sm, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border },
   qtyText: { fontSize: 13, fontWeight: '600', color: colors.text, minWidth: 16, textAlign: 'center' },
 
+  // Customer edit
+  customerEditSection: { paddingHorizontal: spacing.base, paddingVertical: spacing.md, borderTopWidth: 1, borderTopColor: colors.borderLight },
+  customerRow: { flexDirection: 'row', gap: spacing.sm },
+  customerField: { flex: 1 },
+  customerFieldLabel: { fontSize: 10, fontWeight: '600', color: colors.textMuted, marginBottom: 4 },
+  customerInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: 6, fontSize: 13, color: colors.text, backgroundColor: colors.white },
+
   // Cart footer
   cartFooter: { paddingHorizontal: spacing.base, paddingVertical: spacing.md, borderTopWidth: 1, borderTopColor: colors.borderLight },
   cartFooterRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   cartFooterLabel: { fontSize: 12, color: colors.textSecondary },
   cartFooterValue: { fontSize: 13, fontWeight: '600', color: colors.text },
+  cartFooterRowBold: { marginTop: 2, paddingTop: 4, borderTopWidth: 1, borderTopColor: colors.borderLight },
+  cartFooterLabelBold: { fontSize: 13, fontWeight: '700', color: colors.text },
+  cartFooterValueBold: { fontSize: 14, fontWeight: '700', color: colors.text },
+  cartFooterRowTotal: { marginTop: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1.5, borderTopColor: colors.text },
+  cartFooterLabelTotal: { fontSize: 14, fontWeight: '700', color: colors.text },
+  cartFooterValueTotal: { fontSize: 15, fontWeight: '700', color: colors.primary },
 
   // Selection modal
   selectionSection: { marginBottom: spacing.lg },

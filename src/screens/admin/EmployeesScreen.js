@@ -83,7 +83,7 @@ const SALARY_STATUS_BADGE_MAP = {
 
 const INITIAL_EMP = { name: '', phone: '', department: '', designation: '', baseSalary: '', joiningDate: new Date() };
 const INITIAL_ATT = { employeeId: '', date: new Date(), status: 'present', checkIn: null, checkOut: null, notes: '' };
-const INITIAL_SAL = { employeeId: '', month: new Date().getMonth() + 1, year: new Date().getFullYear(), basicSalary: '', bonus: '0', deduction: '0', advanceAdjustment: '0', outstandingAdjustment: '0', notes: '' };
+const freshSalForm = () => ({ employeeId: '', month: new Date().getMonth() + 1, year: new Date().getFullYear(), basicSalary: '', bonus: '0', deduction: '0', advanceAdjustment: '0', outstandingAdjustment: '0', notes: '' });
 const INITIAL_ADVANCE = { employeeId: '', type: 'advance', amount: '', date: new Date(), notes: '' };
 
 function formatDateStr(d) {
@@ -137,7 +137,7 @@ export default function EmployeesScreen({ navigation }) {
 
   // ── Salary state ──
   const [showSalModal, setShowSalModal] = useState(false);
-  const [salForm, setSalForm] = useState(INITIAL_SAL);
+  const [salForm, setSalForm] = useState(freshSalForm());
   const [salEditing, setSalEditing] = useState(null);
   const [showSalDeleteConfirm, setShowSalDeleteConfirm] = useState(false);
   const [salDeleteTarget, setSalDeleteTarget] = useState(null);
@@ -286,19 +286,19 @@ export default function EmployeesScreen({ navigation }) {
 
   const deleteSalMut = useMutation({
     mutationFn: ({ employeeId, salaryId }) => employeeApi.deleteSalary(employeeId, salaryId),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['salaryRecords'] }); setShowSalDeleteConfirm(false); setSalDeleteTarget(null); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['salaryRecords'] }); queryClient.invalidateQueries({ queryKey: ['advances'] }); queryClient.invalidateQueries({ queryKey: ['advanceSummary'] }); setShowSalDeleteConfirm(false); setSalDeleteTarget(null); },
     onError: (err) => Alert.alert('Error', err?.response?.data?.message || 'Failed to delete salary'),
   });
 
   const saveAdvMut = useMutation({
     mutationFn: (data) => advEditing ? employeeApi.updateAdvance(advEditing.id, data) : employeeApi.createAdvance(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['advances'] }); closeAdvModal(); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['advances'] }); queryClient.invalidateQueries({ queryKey: ['advanceSummary'] }); closeAdvModal(); },
     onError: (err) => Alert.alert('Error', err?.response?.data?.message || 'Failed to save'),
   });
 
   const deleteAdvMut = useMutation({
     mutationFn: (id) => employeeApi.deleteAdvance(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['advances'] }); setShowAdvDeleteConfirm(false); setAdvDeleteTarget(null); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['advances'] }); queryClient.invalidateQueries({ queryKey: ['advanceSummary'] }); queryClient.invalidateQueries({ queryKey: ['salaryRecords'] }); setShowAdvDeleteConfirm(false); setAdvDeleteTarget(null); },
     onError: (err) => Alert.alert('Error', err?.response?.data?.message || 'Failed to delete'),
   });
 
@@ -367,12 +367,12 @@ export default function EmployeesScreen({ navigation }) {
   };
 
   // Salary
-  const closeSalModal = () => { setShowSalModal(false); setSalEditing(null); setSalForm(INITIAL_SAL); };
+  const closeSalModal = () => { setShowSalModal(false); setSalEditing(null); setSalForm(freshSalForm()); };
   const openProcessSal = (emp) => {
     const baseSal = emp ? String(emp.baseSalary || emp.base_salary || '') : '';
     setSalEditing(null);
     setSalForm({
-      ...INITIAL_SAL,
+      ...freshSalForm(),
       employeeId: emp ? String(emp.id) : '',
       basicSalary: baseSal,
     });
@@ -385,10 +385,10 @@ export default function EmployeesScreen({ navigation }) {
       month: sal.month,
       year: sal.year,
       basicSalary: String(sal.basicSalary || sal.basic_salary || ''),
-      bonus: String(sal.bonus || '0'),
-      deduction: String(sal.deduction || sal.deductions || '0'),
-      advanceAdjustment: String(sal.advanceAdjustment || sal.advance_adjustment || '0'),
-      outstandingAdjustment: String(sal.outstandingAdjustment || sal.outstanding_adjustment || '0'),
+      bonus: String(sal.bonuses || sal.bonus || '0'),
+      deduction: String(sal.deductions || sal.deduction || '0'),
+      advanceAdjustment: String(sal.adjusted_advances || sal.advanceAdjustment || '0'),
+      outstandingAdjustment: String(sal.adjusted_outstanding || sal.outstandingAdjustment || '0'),
       notes: sal.notes || '',
     });
     setShowSalModal(true);
@@ -619,7 +619,7 @@ export default function EmployeesScreen({ navigation }) {
       <View style={styles.cardContent}>
         <View style={styles.empInfo}>
           <Text style={styles.empName}>{item.employeeName || item.employee_name || `Employee #${item.employeeId || item.employee_id}`}</Text>
-          <Text style={styles.empSub}>{formatDate(item.date)}</Text>
+          <Text style={styles.empSub}>{formatDate(item.date || item.attendance_date)}</Text>
           {(item.checkIn || item.check_in) && (
             <Text style={styles.empSub}>
               In: {formatTime(item.checkIn || item.check_in)}
@@ -671,6 +671,10 @@ export default function EmployeesScreen({ navigation }) {
     const salId = item.id;
     const status = item.paymentStatus || item.payment_status || item.status || 'pending';
     const isPaid = status === 'paid';
+    const netSal = parseFloat(item.net_salary) || 0;
+    const adjAdv = parseFloat(item.adjusted_advances) || 0;
+    const adjOut = parseFloat(item.adjusted_outstanding) || 0;
+    const amountToPay = netSal - adjAdv + adjOut;
     return (
       <Card style={styles.card}>
         <View style={styles.cardContent}>
@@ -688,35 +692,35 @@ export default function EmployeesScreen({ navigation }) {
         <View style={styles.salDetails}>
           <View style={styles.salRow}>
             <Text style={styles.salLabel}>Net Salary</Text>
-            <Text style={styles.salValue}>{formatCurrency(item.netSalary || item.net_salary || item.net_amount || 0)}</Text>
+            <Text style={styles.salValue}>{formatCurrency(netSal)}</Text>
           </View>
-          {(item.bonus > 0) && (
+          {parseFloat(item.bonuses) > 0 && (
             <View style={styles.salRow}>
               <Text style={styles.salLabel}>Bonus</Text>
-              <Text style={[styles.salValue, { color: colors.success }]}>+{formatCurrency(item.bonus)}</Text>
+              <Text style={[styles.salValue, { color: colors.success }]}>+{formatCurrency(item.bonuses)}</Text>
             </View>
           )}
-          {(item.deduction || item.deductions) > 0 && (
+          {parseFloat(item.deductions) > 0 && (
             <View style={styles.salRow}>
               <Text style={styles.salLabel}>Deductions</Text>
-              <Text style={[styles.salValue, { color: colors.error }]}>-{formatCurrency(item.deduction || item.deductions)}</Text>
+              <Text style={[styles.salValue, { color: colors.error }]}>-{formatCurrency(item.deductions)}</Text>
             </View>
           )}
-          {(item.advanceAdjustment || item.advance_adjustment) > 0 && (
+          {adjAdv > 0 && (
             <View style={styles.salRow}>
               <Text style={styles.salLabel}>Advance Adj.</Text>
-              <Text style={[styles.salValue, { color: colors.error }]}>-{formatCurrency(item.advanceAdjustment || item.advance_adjustment)}</Text>
+              <Text style={[styles.salValue, { color: colors.error }]}>-{formatCurrency(adjAdv)}</Text>
             </View>
           )}
-          {(item.outstandingAdjustment || item.outstanding_adjustment) > 0 && (
+          {adjOut > 0 && (
             <View style={styles.salRow}>
               <Text style={styles.salLabel}>Outstanding Adj.</Text>
-              <Text style={[styles.salValue, { color: colors.success }]}>+{formatCurrency(item.outstandingAdjustment || item.outstanding_adjustment)}</Text>
+              <Text style={[styles.salValue, { color: colors.success }]}>+{formatCurrency(adjOut)}</Text>
             </View>
           )}
           <View style={[styles.salRow, styles.salRowTotal]}>
             <Text style={styles.salTotalLabel}>Amount to Pay</Text>
-            <Text style={styles.salTotalValue}>{formatCurrency(item.amountToPay || item.amount_to_pay || item.net_amount || 0)}</Text>
+            <Text style={styles.salTotalValue}>{formatCurrency(amountToPay)}</Text>
           </View>
           {item.paymentDate || item.payment_date ? (
             <Text style={styles.empSub}>Paid on {formatDate(item.paymentDate || item.payment_date)}</Text>
@@ -731,7 +735,7 @@ export default function EmployeesScreen({ navigation }) {
           )}
           {isPaid && (
             <TouchableOpacity style={styles.quickBtn} onPress={() => {
-              salStatusMut.mutate({ employeeId: empId, salaryId: salId, status: 'pending' });
+              salStatusMut.mutate({ employeeId: empId, salaryId: salId, paymentStatus: 'pending' });
             }}>
               <Icon name="rotate-ccw" size={14} color={colors.warning} />
               <Text style={[styles.quickBtnText, { color: colors.warning }]}>Mark Pending</Text>
@@ -772,7 +776,10 @@ export default function EmployeesScreen({ navigation }) {
   );
 
   const renderAdvItem = useCallback(({ item }) => {
-    const isPending = (item.status || 'pending') === 'pending';
+    const amt = parseFloat(item.amount) || 0;
+    const rem = parseFloat(item.remaining) || 0;
+    const adjusted = amt - rem;
+    const canEdit = item.status === 'pending' || item.status === 'active';
     return (
       <Card style={styles.card}>
         <View style={styles.cardContent}>
@@ -787,18 +794,18 @@ export default function EmployeesScreen({ navigation }) {
             <Text style={styles.empSub}>{formatDate(item.date)}</Text>
             <View style={styles.salRow}>
               <Text style={styles.salLabel}>Amount</Text>
-              <Text style={styles.salValue}>{formatCurrency(item.amount)}</Text>
+              <Text style={styles.salValue}>{formatCurrency(amt)}</Text>
             </View>
-            {(item.adjustedAmount || item.adjusted_amount) > 0 && (
+            {adjusted > 0 && (
               <View style={styles.salRow}>
                 <Text style={styles.salLabel}>Adjusted</Text>
-                <Text style={[styles.salValue, { color: colors.success }]}>{formatCurrency(item.adjustedAmount || item.adjusted_amount)}</Text>
+                <Text style={[styles.salValue, { color: colors.success }]}>{formatCurrency(adjusted)} of {formatCurrency(amt)}</Text>
               </View>
             )}
-            {(item.remainingAmount || item.remaining_amount) > 0 && (
+            {rem > 0 && item.status !== 'adjusted' && (
               <View style={styles.salRow}>
                 <Text style={styles.salLabel}>Remaining</Text>
-                <Text style={[styles.salValue, { color: colors.warning }]}>{formatCurrency(item.remainingAmount || item.remaining_amount)}</Text>
+                <Text style={[styles.salValue, { color: colors.warning }]}>{formatCurrency(rem)}</Text>
               </View>
             )}
             {item.notes ? <Text style={styles.empSub}>{item.notes}</Text> : null}
@@ -808,18 +815,18 @@ export default function EmployeesScreen({ navigation }) {
             label={capitalize(item.status || 'pending')}
           />
         </View>
-        {isPending && (
-          <View style={styles.quickActions}>
+        <View style={styles.quickActions}>
+          {canEdit && (
             <TouchableOpacity style={styles.quickBtn} onPress={() => openEditAdv(item)}>
               <Icon name="edit-2" size={14} color={colors.info} />
               <Text style={[styles.quickBtnText, { color: colors.info }]}>Edit</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.quickBtn} onPress={() => { setAdvDeleteTarget(item); setShowAdvDeleteConfirm(true); }}>
-              <Icon name="trash-2" size={14} color={colors.error} />
-              <Text style={[styles.quickBtnText, { color: colors.error }]}>Delete</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+          )}
+          <TouchableOpacity style={styles.quickBtn} onPress={() => { setAdvDeleteTarget(item); setShowAdvDeleteConfirm(true); }}>
+            <Icon name="trash-2" size={14} color={colors.error} />
+            <Text style={[styles.quickBtnText, { color: colors.error }]}>Delete</Text>
+          </TouchableOpacity>
+        </View>
       </Card>
     );
   }, []);
@@ -1120,7 +1127,7 @@ export default function EmployeesScreen({ navigation }) {
             salStatusMut.mutate({
               employeeId: payTarget.employeeId || payTarget.employee_id,
               salaryId: payTarget.id,
-              status: 'paid',
+              paymentStatus: 'paid',
               paymentDate: formatDateStr(payDate),
             });
           }}

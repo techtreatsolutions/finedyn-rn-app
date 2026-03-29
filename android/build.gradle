@@ -29,17 +29,14 @@ subprojects {
             force 'androidx.core:core-ktx:1.13.1'
         }
     }
-    // Ensure all subprojects use the same SDK versions as the main app
-    afterEvaluate { project ->
-        if (project.hasProperty("android")) {
-            project.android {
-                if (namespace == null) {
-                    namespace project.group ?: project.name
-                }
-                compileSdkVersion rootProject.ext.compileSdkVersion
-                defaultConfig {
-                    targetSdkVersion rootProject.ext.targetSdkVersion
-                }
+}
+
+// Ensure all subprojects use the same SDK versions as the main app
+subprojects { sub ->
+    sub.plugins.withId("com.android.library") {
+        sub.android {
+            if (sub.android.compileSdkVersion != "android-${rootProject.ext.compileSdkVersion}") {
+                sub.android.compileSdkVersion rootProject.ext.compileSdkVersion
             }
         }
     }

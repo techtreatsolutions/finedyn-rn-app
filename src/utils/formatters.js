@@ -96,6 +96,13 @@ export function formatDateTime(dateStr) {
 }
 
 export function formatTime(dateStr) {
+  if (!dateStr) return '—';
+  // Handle bare time strings like "09:30:00" or "14:00:00"
+  const str = String(dateStr).trim();
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(str)) {
+    const [h, m] = str.split(':').map(Number);
+    if (!isNaN(h) && !isNaN(m)) return formatAmPm(h, m);
+  }
   const p = toISTParts(dateStr);
   if (!p) return '—';
   return formatAmPm(p.hours, p.minutes);
