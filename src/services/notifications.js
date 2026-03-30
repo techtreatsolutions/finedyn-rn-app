@@ -2,6 +2,7 @@ import messaging from '@react-native-firebase/messaging';
 import { Platform, PermissionsAndroid } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { authApi } from '../api/auth.api';
+import { playNewOrderAlert } from '../utils/alertSound';
 
 let _navigationRef = null;
 let _currentFcmToken = null;
@@ -196,6 +197,13 @@ export function setupNotificationListeners() {
   // Foreground messages - show a toast with navigation on tap
   const unsubscribeForeground = messaging().onMessage(async (remoteMessage) => {
     const { title, body } = remoteMessage.notification || {};
+    const notifType = remoteMessage.data?.type;
+
+    // Play sound alert for kitchen-related notifications
+    if (notifType === 'kot' || notifType === 'new_kot' || notifType === 'kot_update' || notifType === 'new_order') {
+      playNewOrderAlert();
+    }
+
     if (title) {
       Toast.show({
         type: 'info',

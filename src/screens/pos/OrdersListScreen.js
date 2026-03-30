@@ -12,6 +12,7 @@ import { restaurantApi } from '../../api/restaurant.api';
 import { useAuth } from '../../hooks/useAuth';
 import RNPrint from 'react-native-print';
 import ThermalPrinter from '../../utils/thermalPrinter';
+import { generateBillHtml } from '../../utils/printHtml';
 import Header from '../../components/common/Header';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
@@ -182,82 +183,7 @@ export default function OrdersListScreen({ navigation }) {
       }
 
       // Fallback: system print dialog
-      const order = bill.order || {};
-      const items = bill.items || [];
-      const adjs = bill.adjustments || [];
-      const taxBreakdown = bill.taxBreakdown || [];
-      const enableTax = bill.enableTax !== false;
-      const showLogo = bf.show_logo !== 0 && (order.logo_url || bf.logo_url);
-      const logoUrl = order.logo_url || bf.logo_url;
-      const showName = bf.show_restaurant_name !== 0;
-      const showAddr = bf.show_address !== 0;
-      const showContact = bf.show_contact !== 0;
-      const showGst = bf.show_gst !== 0;
-      const showWaiter = bf.show_waiter_name !== 0;
-      const showTable = bf.show_table_number !== 0;
-      const showDate = bf.show_date_time !== 0;
-      const showPayMode = bf.show_payment_mode !== 0;
-      const showCustomer = bf.show_customer_details !== 0 || !!(order.customer_name || order.customer_phone);
-      const thankMsg = bf.thank_you_message || 'Thank you for dining with us!';
-      const customHeader = bf.custom_header || '';
-      const customFooter = bf.custom_footer || '';
-      const headerImageUrl = bf.header_image_url || '';
-      const footerImageUrl = bf.footer_image_url || '';
-      const fs = sizeMm <= 58 ? '10px' : '11px';
-      const fsSmall = sizeMm <= 58 ? '8px' : '9px';
-      const fsTd = sizeMm <= 58 ? '9px' : '10px';
-      const fsBig = sizeMm <= 58 ? '13px' : '15px';
-      const fsTot = sizeMm <= 58 ? '11px' : '12px';
-      const colQty = sizeMm <= 58 ? '12%' : '10%';
-      const colRate = sizeMm <= 58 ? '22%' : '20%';
-      const colTotal = sizeMm <= 58 ? '24%' : '22%';
-      const fc = (amt) => `${parseFloat(amt || 0).toFixed(2)}`;
-      const itemRows = items.map(i => {
-        const addons = typeof i.addon_details === 'string' ? JSON.parse(i.addon_details || '[]') : (i.addon_details || []);
-        const addonLine = addons.length > 0 ? `<tr><td colspan="4" style="font-size:${fsSmall};color:#666;padding-left:8px">+ ${addons.map(a => a.name).join(', ')}</td></tr>` : '';
-        const effectiveRate = parseFloat(i.item_price || 0) + parseFloat(i.addon_per_unit || 0);
-        return `<tr><td>${i.item_name}</td><td style="text-align:center">${i.quantity}</td><td style="text-align:right">${fc(effectiveRate)}</td><td style="text-align:right">${fc(i.line_total)}</td></tr>${addonLine}`;
-      }).join('');
-      const summaryRows = [];
-      summaryRows.push(`<tr><td colspan="3">Subtotal</td><td style="text-align:right">${fc(order.subtotal)}</td></tr>`);
-      (adjs || []).forEach(a => {
-        const isDiscount = a.adjustment_type === 'discount';
-        summaryRows.push(`<tr><td colspan="3">${a.label}${a.value_type === 'percentage' ? ` (${a.value}%)` : ''}</td><td style="text-align:right">${isDiscount ? '-' : '+'}${fc(a.applied_amount)}</td></tr>`);
-      });
-      if (enableTax) taxBreakdown.forEach(t => { summaryRows.push(`<tr><td colspan="3">${t.label}${t.rate ? ` @ ${t.rate}%` : ''}</td><td style="text-align:right">${fc(t.taxAmount)}</td></tr>`); });
-      const billToHtml = showCustomer && (order.customer_name || order.customer_phone)
-        ? `<div style="margin:6px 0;font-size:${fs}"><div><b>Bill To:</b> ${order.customer_name || 'Cash Customer'}</div>${order.customer_phone ? `<div><b>Ph:</b> ${order.customer_phone}</div>` : ''}</div>` : '';
-      const deliveryHtml = order.order_type === 'delivery' && order.delivery_address
-        ? `<div style="margin:4px 0;padding:4px 0;border-top:1px dashed #000;font-size:${fs}"><div><b>Delivery Address:</b></div><div style="margin-top:2px">${order.delivery_address}</div></div>` : '';
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',Courier,monospace;font-size:${fs};width:100%;max-width:${sizeMm}mm;padding:3mm;color:#000;word-break:break-word;overflow-wrap:break-word;line-height:1.3}b{font-weight:bold}.ct{text-align:center}hr{border:none;border-top:1px dashed #000;margin:4px 0}table{width:100%;border-collapse:collapse;table-layout:fixed}td,th{padding:1px 0;vertical-align:top;font-size:${fsTd};overflow:hidden;text-overflow:ellipsis}img{max-height:60px}.items-tbl th:nth-child(1),.items-tbl td:nth-child(1){text-align:left;word-break:break-word;overflow-wrap:break-word;white-space:normal}.items-tbl th:nth-child(2),.items-tbl td:nth-child(2){text-align:center;width:${colQty}}.items-tbl th:nth-child(3),.items-tbl td:nth-child(3){text-align:right;width:${colRate}}.items-tbl th:nth-child(4),.items-tbl td:nth-child(4){text-align:right;width:${colTotal}}.summary-tbl td{font-size:${fsTd}}.summary-tbl td:last-child{text-align:right}.tot td{font-weight:bold;font-size:${fsTot};padding-top:3px;border-top:1px dashed #000}@media print{@page{size:${sizeMm}mm auto;margin:0}body{padding:2mm 3mm}html,body{width:${sizeMm}mm}}</style></head><body>
-${headerImageUrl ? `<div class="ct" style="margin-bottom:4px"><img src="${headerImageUrl}" style="max-width:90%;object-fit:contain"></div>` : ''}
-${showLogo && logoUrl ? `<div class="ct" style="margin-bottom:6px"><img src="${logoUrl}" style="max-width:60%;max-height:50px;object-fit:contain"></div>` : ''}
-${showName ? `<div class="ct" style="font-weight:bold;font-size:${fsBig}">${order.restaurant_name || 'Restaurant'}</div>` : ''}
-${showAddr && order.address ? `<div class="ct" style="font-size:${fsSmall}">${order.address}</div>` : ''}
-${showContact && order.phone ? `<div class="ct" style="font-size:${fsSmall}">Ph: ${order.phone}</div>` : ''}
-${showGst && order.gstin ? `<div class="ct" style="font-size:${fsSmall}">GSTIN: ${order.gstin}</div>` : ''}
-${customHeader ? `<div class="ct" style="font-size:${fsSmall};margin-top:2px">${customHeader}</div>` : ''}
-<hr>
-${order.order_type === 'delivery' ? `<div class="ct" style="font-weight:bold;font-size:${sizeMm <= 58 ? '12px' : '14px'};margin:4px 0">** DELIVERY **</div>` : ''}
-<table>
-${order.bill_number ? `<tr><td style="width:45%"><b>Bill #</b></td><td><b>${order.bill_number}</b></td></tr>` : ''}
-<tr><td style="width:45%">Order</td><td>${order.order_number || ''}</td></tr>
-${showTable && order.table_number ? `<tr><td>Table</td><td>${order.table_number}${order.floor_name ? ' - ' + order.floor_name : ''}</td></tr>` : ''}
-${showWaiter && order.waiter_name ? `<tr><td>Staff</td><td>${order.waiter_name}</td></tr>` : ''}
-${showDate ? `<tr><td>Date</td><td>${new Date(order.created_at).toLocaleString('en-IN')}</td></tr>` : ''}
-${showPayMode && order.payment_mode ? `<tr><td>Paid via</td><td>${(order.payment_mode || '').toUpperCase()}</td></tr>` : ''}
-</table>
-${billToHtml}${deliveryHtml}
-<hr>
-<table class="items-tbl"><thead><tr><th style="text-align:left">Item</th><th>Qty</th><th style="text-align:right">Rate</th><th style="text-align:right">Total</th></tr></thead><tbody>${itemRows}</tbody></table>
-<hr>
-<table class="summary-tbl">${summaryRows.join('')}<tr class="tot"><td colspan="3">TOTAL</td><td style="text-align:right">&#8377;${parseFloat(order.total_amount || 0).toFixed(2)}</td></tr></table>
-<hr>
-${customFooter ? `<div class="ct" style="margin-top:2px;font-size:${fsSmall}">${customFooter}</div>` : ''}
-${footerImageUrl ? `<div class="ct" style="margin-top:4px"><img src="${footerImageUrl}" style="max-width:90%;object-fit:contain"></div>` : ''}
-<div class="ct" style="margin-top:4px">${thankMsg}</div>
-</body></html>`;
+      const html = generateBillHtml(bill, restName, sizeMm);
       await RNPrint.print({ html, width: sizeMm * 2.83 });
     } catch (err) {
       Alert.alert('Error', 'Failed to print bill');

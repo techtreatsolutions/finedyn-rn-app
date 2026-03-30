@@ -13,6 +13,7 @@ import EmptyState from '../../components/common/EmptyState';
 import { colors, spacing, radius, typography } from '../../theme';
 import { timeAgo, capitalize } from '../../utils/formatters';
 import { useAuth } from '../../hooks/useAuth';
+import { playNewOrderAlert, releaseAlertSound } from '../../utils/alertSound';
 
 const STATUS_FLOW = { pending: 'preparing', preparing: 'ready', ready: 'served' };
 const STATUS_COLORS = {
@@ -58,13 +59,19 @@ export default function KDSScreen({ navigation }) {
     refetchInterval: 10000,
   });
 
-  // Vibration alert when new orders arrive
+  // Vibration + sound alert when new orders arrive
   useEffect(() => {
     if (prevOrderCountRef.current !== null && orders.length > prevOrderCountRef.current) {
       Vibration.vibrate([0, 300, 200, 300, 200, 300]);
+      playNewOrderAlert();
     }
     prevOrderCountRef.current = orders.length;
   }, [orders.length]);
+
+  // Release sound on unmount
+  useEffect(() => {
+    return () => releaseAlertSound();
+  }, []);
 
   const updateItemMut = useMutation({
     mutationFn: ({ itemId, status }) => orderApi.updateKitchenItemStatus(itemId, { status }),

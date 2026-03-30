@@ -127,6 +127,10 @@ export default function AdminDrawer() {
       // QR Orders screen only visible for QR Ordering plan restaurants
       if (screen.key === 'qr_orders' && !isQR) return false;
 
+      // Hide POS-specific screens for QR Ordering model restaurants
+      const qrHiddenKeys = ['pos', 'tables', 'orders', 'customers'];
+      if (isQR && qrHiddenKeys.includes(screen.key)) return false;
+
       // 1. Check plan feature gate
       const featureKey = FEATURE_MAP[screen.key];
       if (featureKey && !hasFeature(featureKey)) return false;

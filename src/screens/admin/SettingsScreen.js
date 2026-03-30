@@ -562,13 +562,13 @@ export default function SettingsScreen({ navigation }) {
             <View style={[styles.row, { marginTop: spacing.md }]}>
               <Button
                 title="Share QR"
-                icon="share-2"
+                icon={<Icon name="share-2" size={16} color={colors.white} />}
                 onPress={handleShareStandaloneQR}
                 style={styles.half}
               />
               <Button
                 title="Regenerate"
-                icon="refresh-cw"
+                icon={<Icon name="refresh-cw" size={16} color={colors.primary} />}
                 variant="outline"
                 onPress={handleGenerateStandaloneQR}
                 loading={qrGenerating}
@@ -579,7 +579,7 @@ export default function SettingsScreen({ navigation }) {
         ) : (
           <Button
             title="Generate Standalone QR Code"
-            icon="maximize"
+            icon={<Icon name="maximize" size={16} color={colors.primary} />}
             variant="outline"
             onPress={handleGenerateStandaloneQR}
             loading={qrGenerating}

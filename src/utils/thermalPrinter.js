@@ -13,9 +13,15 @@ const BILL_PRINTER_KEY = '@dinesys_bill_printer';
 const KOT_PRINTER_KEY = '@dinesys_kot_printer';
 
 // ── Character widths by paper size ───────────────────────────────────────────
-// Standard thermal printers: 58mm ≈ 32 chars, 80mm ≈ 48 chars (Font A)
+// Standard thermal printers (Font A, 12x24 dots):
+//   58mm printable ~48mm → 32 chars
+//   76mm printable ~64mm → 42 chars
+//   80mm printable ~72mm → 48 chars
+// Formula: chars ≈ (sizeMm - 10mm margins) / 1.5mm per char, clamped to known values
 function getCharsPerLine(sizeMm) {
   if (sizeMm <= 58) return 32;
+  if (sizeMm <= 70) return 38;
+  if (sizeMm <= 76) return 42;
   return 48;
 }
 
@@ -208,9 +214,10 @@ async function printBill(bill, restaurantName, sizeMm = 80) {
 
   const W = getCharsPerLine(sizeMm);
   // Column widths for items table: Item | Qty | Rate | Total
+  // Scale rate/total columns based on available width
   const colQty = 4;
-  const colRate = sizeMm <= 58 ? 7 : 8;
-  const colTotal = sizeMm <= 58 ? 8 : 9;
+  const colRate = W <= 32 ? 7 : W <= 42 ? 8 : 8;
+  const colTotal = W <= 32 ? 8 : W <= 42 ? 9 : 9;
   const colItem = W - colQty - colRate - colTotal;
 
   await BluetoothEscposPrinter.printerInit();
@@ -554,14 +561,17 @@ async function testPrint(sizeMm = 80) {
   await BluetoothEscposPrinter.printText(`${dashLine(W)}\n`, {});
 
   // Test column alignment
+  const tColTotal = W <= 32 ? 8 : 9;
+  const tColQty = 4;
+  const tColItem = W - tColQty - tColTotal;
   await BluetoothEscposPrinter.printColumn(
-    [W - 12, 4, 8],
+    [tColItem, tColQty, tColTotal],
     [ALIGN.LEFT, ALIGN.CENTER, ALIGN.RIGHT],
     ['Sample Item', '2', '199.00'],
     {},
   );
   await BluetoothEscposPrinter.printColumn(
-    [W - 12, 4, 8],
+    [tColItem, tColQty, tColTotal],
     [ALIGN.LEFT, ALIGN.CENTER, ALIGN.RIGHT],
     ['Another Item', '1', '99.50'],
     {},
@@ -569,8 +579,9 @@ async function testPrint(sizeMm = 80) {
 
   await BluetoothEscposPrinter.printText(`${dashLine(W)}\n`, {});
   await BluetoothEscposPrinter.setBold(1);
+  const tSummaryW = W - tColTotal;
   await BluetoothEscposPrinter.printColumn(
-    [W - 10, 10],
+    [tSummaryW, tColTotal],
     [ALIGN.LEFT, ALIGN.RIGHT],
     ['TOTAL', 'Rs.497.50'],
     {},
