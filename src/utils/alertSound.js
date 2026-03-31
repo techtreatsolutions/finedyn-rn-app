@@ -4,18 +4,23 @@ import Sound from 'react-native-sound';
 Sound.setCategory('Playback');
 
 let _alertSound = null;
+let _loaded = false;
 
-function getAlertSound() {
-  if (!_alertSound) {
-    _alertSound = new Sound('order_alert.wav', Sound.MAIN_BUNDLE, (error) => {
-      if (error) {
-        console.warn('[AlertSound] Failed to load order_alert.wav:', error.message);
-        _alertSound = null;
-      }
-    });
-  }
-  return _alertSound;
+function initAlertSound() {
+  if (_alertSound) return;
+  _alertSound = new Sound('order_alert.wav', Sound.MAIN_BUNDLE, (error) => {
+    if (error) {
+      console.warn('[AlertSound] Failed to load order_alert.wav:', error.message);
+      _alertSound = null;
+      _loaded = false;
+    } else {
+      _loaded = true;
+    }
+  });
 }
+
+// Pre-load on import
+initAlertSound();
 
 /**
  * Play the new-order alert sound.
@@ -23,14 +28,13 @@ function getAlertSound() {
  */
 export function playNewOrderAlert() {
   try {
-    const sound = getAlertSound();
-    if (!sound) return;
-    sound.stop(() => {
-      sound.setVolume(1.0);
-      sound.play((success) => {
-        if (!success) {
+    if (!_alertSound || !_loaded) return;
+    _alertSound.stop(() => {
+      _alertSound.setVolume(1.0);
+      _alertSound.play((ok) => {
+        if (!ok) {
           console.warn('[AlertSound] Playback failed, resetting');
-          sound.reset();
+          _alertSound.reset();
         }
       });
     });
@@ -46,5 +50,6 @@ export function releaseAlertSound() {
   if (_alertSound) {
     _alertSound.release();
     _alertSound = null;
+    _loaded = false;
   }
 }

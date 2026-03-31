@@ -147,7 +147,7 @@ export default function ReservationsScreen({ navigation }) {
       queryClient.invalidateQueries({ queryKey: ['reservations'] });
       setStartOrderTarget(null);
       Alert.alert('Success', 'Order started!');
-      if (d.id) navigation.navigate('POSDashboard', { orderId: d.id });
+      if (d.id) navigation.navigate('POS / Billing', { orderId: d.id });
     },
     onError: (err) => { Alert.alert('Error', err?.response?.data?.message || 'Failed to start order'); setStartOrderTarget(null); },
   });
@@ -297,7 +297,7 @@ export default function ReservationsScreen({ navigation }) {
               </TouchableOpacity>
             )}
             {item.order_id && !['completed', 'cancelled'].includes(item.order_status) && (
-              <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('POSDashboard', { orderId: item.order_id })}>
+              <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('POS / Billing', { orderId: item.order_id })}>
                 <Icon name="eye" size={14} color={colors.primary} />
                 <Text style={[styles.actionText, { color: colors.primary }]}>View Order</Text>
               </TouchableOpacity>

@@ -712,6 +712,40 @@ export default function WaiterDashboardScreen({ navigation }) {
             <Text style={styles.cartSectionTitle}>CUSTOMER INFO</Text>
             <View style={styles.customerRow}>
               <View style={styles.customerField}>
+                <Text style={styles.customerFieldLabel}>Phone</Text>
+                <TextInput
+                  style={styles.customerInput}
+                  value={orderDetail.customer_phone || ''}
+                  onChangeText={(val) => {
+                    queryClient.setQueryData(['waiter-order-detail', selectedTable.order_id], prev => {
+                      const d = prev?.data ? { ...prev, data: { ...prev.data, customer_phone: val } } : { ...prev, customer_phone: val };
+                      return d;
+                    });
+                  }}
+                  placeholder="Phone number"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="phone-pad"
+                  returnKeyType="next"
+                  onEndEditing={async (e) => {
+                    const phone = (e.nativeEvent.text || '').trim();
+                    updateCustomerMut.mutate({ orderId: selectedTable.order_id, data: { customerPhone: phone } });
+                    if (phone.replace(/\D/g, '').length >= 10 && !orderDetail.customer_name) {
+                      try {
+                        const r = await orderApi.lookupCustomer(phone);
+                        const name = r?.data?.customer_name || r?.customer_name;
+                        if (name) {
+                          queryClient.setQueryData(['waiter-order-detail', selectedTable.order_id], prev => {
+                            const d = prev?.data ? { ...prev, data: { ...prev.data, customer_name: name } } : { ...prev, customer_name: name };
+                            return d;
+                          });
+                          updateCustomerMut.mutate({ orderId: selectedTable.order_id, data: { customerName: name } });
+                        }
+                      } catch (_) {}
+                    }
+                  }}
+                />
+              </View>
+              <View style={styles.customerField}>
                 <Text style={styles.customerFieldLabel}>Name</Text>
                 <TextInput
                   style={styles.customerInput}
@@ -727,26 +761,6 @@ export default function WaiterDashboardScreen({ navigation }) {
                   returnKeyType="done"
                   onEndEditing={(e) => {
                     updateCustomerMut.mutate({ orderId: selectedTable.order_id, data: { customerName: e.nativeEvent.text } });
-                  }}
-                />
-              </View>
-              <View style={styles.customerField}>
-                <Text style={styles.customerFieldLabel}>Phone</Text>
-                <TextInput
-                  style={styles.customerInput}
-                  value={orderDetail.customer_phone || ''}
-                  onChangeText={(val) => {
-                    queryClient.setQueryData(['waiter-order-detail', selectedTable.order_id], prev => {
-                      const d = prev?.data ? { ...prev, data: { ...prev.data, customer_phone: val } } : { ...prev, customer_phone: val };
-                      return d;
-                    });
-                  }}
-                  placeholder="Phone number"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="phone-pad"
-                  returnKeyType="done"
-                  onEndEditing={(e) => {
-                    updateCustomerMut.mutate({ orderId: selectedTable.order_id, data: { customerPhone: e.nativeEvent.text } });
                   }}
                 />
               </View>
